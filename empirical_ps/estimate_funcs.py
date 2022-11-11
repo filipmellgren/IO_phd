@@ -1,3 +1,6 @@
+# TODO: how to add market size or outside good?
+
+
 df["product_ids"] = df["idcode"]
 df["prices"] = df["price"]
 df["shares"] = df["mshare"]

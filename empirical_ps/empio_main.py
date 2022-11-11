@@ -16,7 +16,7 @@ import pyblp
 # Store x time is a 'market'
 # What about outside option here?
 ### TMP ############################################
-
+df.loc[df.idcode == 35413, df.columns.isin(top_wines)]
 
 #TMP end ############################################
 # 0. Load data
@@ -39,7 +39,8 @@ df = df[df["lnprice"] < 6]
 # Problem with this specification: prices are endogenous
 # Additional issue: how seaprated are the markets? Some SUTVA might be violated
 top_N = 4
-top_wines = df.groupby("idcode").sum()["numbot"].sort_values(ascending = False).reset_index()[:top_N].idcode
+top_wines = df.groupby(level = 0).sum()["numbot"].sort_values(ascending = False).reset_index()[:top_N].idcode
+df = df.reset_index()
 df = df.loc[pd.Series(df.idcode).isin(top_wines)]
 
 df_prices = df.pivot(index=["date", "storenum"], columns = "idcode", values='lnprice')
@@ -72,6 +73,10 @@ els.columns = els.columns.map(str)
 
 fig = px.imshow(els, title = "Elasticity estimates under OLS controlling for price") 
 fig.write_image("figures/elasticities_ols.png")
+
+
+
+# TODO: maybe I should switch completely to the BLP package here. 
 
 # 3. Berry 1994, Estimation. Estimate demand using discrtete choice a la Berry (1994) using observable product characteristics
 Msize = df["numbot"].groupby(level = [0,1]).sum().groupby(level = [1]).max()*3 # Max bought over time, multiuplied by constant
