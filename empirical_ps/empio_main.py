@@ -12,11 +12,12 @@ import ipdb
 import plotly.express as px
 from sklearn import datasets, linear_model
 import pyblp
+from estimate_funcs import est_demand_ols, calc_shares, set_names, est_prod_char, est_fe, est_blp_instrument, est_nests, extract_estimation_results
 
 # Store x time is a 'market'
 # What about outside option here?
 ### TMP ############################################
-df.loc[df.idcode == 35413, df.columns.isin(top_wines)]
+#df.loc[df.idcode == 35413, df.columns.isin(top_wines)]
 
 #TMP end ############################################
 # 0. Load data
@@ -24,59 +25,40 @@ df.loc[df.idcode == 35413, df.columns.isin(top_wines)]
 df = pd.read_excel("data/wine_ps2.xls")
 df = df.dropna()
 df = df.set_index(["idcode", "storenum", "date"])
-
+MSIZE_k = 2
+df["price"] = df["p"]
+df["lnprice"] = np.log(df["price"])
 
 # 1. Descriptive statistics
 # Number of products
 plot_all(df)
 
-# Based on plots, do some data filtration
-df["price"] = df["p"] / df["fx"]
-df["lnprice"] = np.log(df["price"])
-df = df[df["lnprice"] < 6]
+
 
 # 2. Estimate demand for wine
 # Problem with this specification: prices are endogenous
 # Additional issue: how seaprated are the markets? Some SUTVA might be violated
-top_N = 4
-top_wines = df.groupby(level = 0).sum()["numbot"].sort_values(ascending = False).reset_index()[:top_N].idcode
-df = df.reset_index()
-df = df.loc[pd.Series(df.idcode).isin(top_wines)]
+est_demand_ols(df)
 
-df_prices = df.pivot(index=["date", "storenum"], columns = "idcode", values='lnprice')
-
-df = df.set_index(["date", "storenum"])
-df = df.join(df_prices)
-df = df.dropna()
-df["lnq"] = np.log(df["numbot"])
-
-df["lnq"].describe()
-df["lnprice"].describe()
-
-df["Wine_id"] = df["idcode"].astype(str)
-fig = px.scatter(df, x = "lnq", y = "lnprice", color = "Wine_id", trendline = "ols")
-fig.show()
-fig.write_image("figures/price_quant.png")
-
-els = []
-for wine in top_wines:
-	X = df.loc[df.idcode == wine, df.columns.isin(top_wines)]
-	Y = df.loc[df.idcode == wine, "lnq"]
-	reg = LinearRegression().fit(X, Y)
-	els.append(reg.coef_)
-
-els = pd.DataFrame(els)
-els.index = top_wines
-els.index = els.index.map(str)
-els.columns = top_wines
-els.columns = els.columns.map(str)
-
-fig = px.imshow(els, title = "Elasticity estimates under OLS controlling for price") 
-fig.write_image("figures/elasticities_ols.png")
+# BLP estimation
+df = calc_shares(df, MSIZE_k)
+df = set_names(df)
+# Swithching to BLP package here. 
+# 3 and 4
+results = est_prod_char(df)
+extract_estimation_results(results)
+# 5
+results_fe = est_fe(df)
+extract_estimation_results(results_fe)
+# 6
+results_blp = est_blp_instrument(df)
+extract_estimation_results(results_blp)
+# 7
+results_nl = est_nests(df)
+extract_estimation_results(results_nl)
 
 
-
-# TODO: maybe I should switch completely to the BLP package here. 
+'''
 
 # 3. Berry 1994, Estimation. Estimate demand using discrtete choice a la Berry (1994) using observable product characteristics
 Msize = df["numbot"].groupby(level = [0,1]).sum().groupby(level = [1]).max()*3 # Max bought over time, multiuplied by constant

@@ -6,7 +6,7 @@ The problem set was solved using `python` and relies on the package `pyblp` by C
 
 ## Descriptive Statistics
 
- Since we want to estimate demand for wine, important variables in the dataset `wine_ps2.dta` include the price variabel `p`, which denotes the nominal price, and the quantity variable `numbot`. The unit of observation are `idcode`, which identifies a wine, `date`, which denotes a unit of time (presumably week), and `storenum`, which is a code identifying an individual store. `numbot` is consequenlty the number of bottles sold of a particular wine in a given store in a given point in time. In total, there are 31798 such observations, although I drop observations with NAs leaving me with 27189 observations. 
+ Since we want to estimate demand for wine, important variables in the dataset `wine_ps2.dta` include the price variabel `p`, which denotes the nominal price, and the quantity variable `numbot`. The unit of observation are `idcode`, which identifies a wine, `date`, which denotes a unit of time (presumably week), and `storenum`, which is a code identifying an individual store. `numbot` is consequenlty the number of bottles sold of a particular wine in a given store in a given point in time. We can think of store and time as jointly defining a "market", which will be a useful concept when estimating the demand system. In total, there are 31798 wine-market observations, although I drop observations with NAs leaving me with 27189 observations. 
 
 We begin by plotting the distribution of this price variable: 
 
@@ -76,11 +76,13 @@ Having estimates of $\alpha$, we can then back out own and crossprice elasticiti
 
 There are several specifications for which we will repeat the exercise and we begin with the most simple.
 
+For all specifications I will define the total market size as a constant multiplied by the store maximum number of bottles sold at any point in time. Using the maximal sales in a given store provides a lower bound for the total market size of a store-time combination assuming that there is no large change in population. I let the multiplying constant be 2, meaning that people can drink at most twice as much as the record observed in the data.
+
+
 ### Estimation using product characteristics
 
 ### Estimation using the fixed-effects estimator
 Under the fixed effects estimator, the parameters $(\alpha, \beta)$ can be identified by assuming $E[\eta_{jm} \vert \mathbf{x}_{jm}'] = 0$ and $E[\eta_{jm} \vert p_{jm}]=0$, i.e. prices are exogenous. If we find that $\alpha < 0$, we might have endogeneity problems since rthis would mean that consumers' utility increase with prices. 
-
 
 ### Estimation using BLP-style instruments
 

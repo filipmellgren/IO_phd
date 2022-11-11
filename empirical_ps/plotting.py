@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 def plot_all(df):
 	# Price distribution
 	df["price"] = df["p"]
+	df["lnprice"] = df["p"]
 	fig_lnp = px.histogram(df, x="lnprice").\
 	update_layout(xaxis_title = "Log Price", yaxis_title = "Count")
 	fig_p = px.histogram(df, x="price").\
