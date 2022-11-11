@@ -15,18 +15,23 @@ import pyblp
 
 # Store x time is a 'market'
 # What about outside option here?
+### TMP ############################################
 
+
+#TMP end ############################################
 # 0. Load data
 
 df = pd.read_excel("data/wine_ps2.xls")
 df = df.dropna()
+df = df.set_index(["idcode", "storenum", "date"])
+
 
 # 1. Descriptive statistics
 # Number of products
 plot_all(df)
 
 # Based on plots, do some data filtration
-df["price"] = df["p"] * df["fx"]
+df["price"] = df["p"] / df["fx"]
 df["lnprice"] = np.log(df["price"])
 df = df[df["lnprice"] < 6]
 
@@ -83,13 +88,13 @@ def berry94_est(X, Y):
 	reg = LinearRegression().fit(X, Y) # Estimate beta and alpha through eq. 14 Berry 1994
 
 	alpha = reg.coef_[price_var_loc]
-	return(alpha)
+	return(alpha, reg.coef_)
 
 X_vars = ["lnprice", "proof", "variet", "doc"]
 X = df.loc[:, df.columns.isin(X_vars)] 
 Y = df.loc[:, "delta_j"]
 
-b94_est = berry94_est(X, Y)
+b94_est, coefs = berry94_est(X, Y)
 np.savetxt("figures/b94_elas.csv", np.expand_dims(b94_est,0))
 
 # 4. Berry 1994, eq 31 (slighly before I think) Implied markups assuming MC are constant.
