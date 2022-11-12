@@ -4,6 +4,8 @@ import pyblp
 import plotly.express as px
 from sklearn.linear_model import LinearRegression
 import ipdb
+import plotly.graph_objects as go
+
 
 
 def est_demand_ols(df):
@@ -47,12 +49,11 @@ def est_demand_ols(df):
 	return
 
 
-# TODO: Do this before cutting away values
 def calc_shares(df, k):
 	'''
 	k is the constant used to define the market size
 	'''
-	Msize = df["numbot"].groupby(level = [0,1]).sum().groupby(level = [1]).max() * k # Max bought over time, multiuplied by constant
+	Msize = df["numbot"].groupby(level = [1, 2]).sum().groupby(level = [1]).max() * k # Max bought over time, multiuplied by constant
 	df = df.join(Msize, rsuffix = "_market")
 	df["shares"] = df["numbot"] / df["numbot_market"]
 	return(df)
@@ -63,6 +64,7 @@ def set_names(df):
 	df["prices"] = df["price"]
 	df["market_ids"] = df.index.get_level_values('date').astype(str) +"_"+ df.index.get_level_values('storenum').astype(str)
 	df["demand_instruments0"] = df["price"]
+	df['firm_ids'] = df['product_ids'] # Each product is associated with 1 prodct
 	return(df)
 
 def est_prod_char(df):
@@ -70,23 +72,23 @@ def est_prod_char(df):
 	logit_formulation = pyblp.Formulation('prices + proof + variet')
 	problem = pyblp.Problem(logit_formulation, df)
 	logit_results_characteristics = problem.solve()
-	return()
+	return(logit_results_characteristics)
 
 def est_fe(df):
 	# Specification 5, fixed effects
 	logit_formulation = pyblp.Formulation('prices', absorb='C(product_ids)')
 	problem = pyblp.Problem(logit_formulation, df)
 	logit_results_fe = problem.solve()
-	return
+	return(logit_results_fe)
 
-def est_blp_instrument():
+def est_blp_instrument(df):
 	# Specification 6, BLP styled instruments
 	df["demand_instruments0"] = df["proof"].groupby(level = [0,1]).sum() - df["proof"]
 	df["demand_instruments1"] = df["merlot"].groupby(level = [0,1]).sum() - df["merlot"]
 	logit_formulation = pyblp.Formulation('prices')
 	problem = pyblp.Problem(logit_formulation, df)
 	logit_results_blp = problem.solve()
-	return
+	return(logit_results_blp)
 
 def est_nests(df):
 	# Specification 7, countries as nests
@@ -96,15 +98,44 @@ def est_nests(df):
 	nl_formulation = pyblp.Formulation('0 + prices')
 	problem = pyblp.Problem(nl_formulation, df)
 	nl_results = problem.solve(rho = 0.7)
-	return
+	return(nl_results)
 
-def extract_estimation_results(results, path):
+def extract_estimation_results(df, results):
 	''' Calculate elasticities, markups, marginal costs, and create plots
 	results : a ProblemResults object from pyblp package
+	# TODO: extract coefficients for each run
+	# TODO: WANT TO HAVE all outcome in a single plot. Would be neat
+	# Histogram with markups for each specification. 
+	# TODO: he asks specifically for quantiles: What is the implied markup - at the 5th percentile, 25th, median, 75th and 95th?
 	'''
 	elasticities = results.compute_elasticities()
+	# Information about own elasticities of demand from elasticity matrices:
 	mean_elasticities = results.extract_diagonal_means(elasticities)
+	# Aggregate elasticities of demand, E, in each market, which reflect the change in total sales under a proportional sales tax of some factor
 	aggregates = results.compute_aggregate_elasticities(factor=0.1)
-	costs = results.compute_costs() # Note: Either firm IDs or an ownership matrix must have been specified.
+	costs = results.compute_costs() 
 	markups = results.compute_markups(costs=costs)
+	return(mean_elasticities, aggregates, costs, markups)
+
+def plot_aggs_means(aggs, means):
+	fig = go.Figure()
+	fig.add_trace(go.Histogram(x=np.squeeze(means, axis = 1)))
+	fig.add_trace(go.Histogram(x=np.squeeze(aggregates, axis = 1)))
+	# Overlay both histograms
+	fig.update_layout(barmode='overlay')
+	# Reduce opacity to see both histograms
+	fig.update_traces(opacity=0.75)
+	fig.write_image("figures/mean_agg_elasticities.png")
 	return
+
+def histogram(df, variable, path):
+	fig = go.Figure()
+	fig.add_trace(go.Histogram(x=np.squeeze(variable, axis = 1)))
+	fig.write_image(path)
+	return
+
+
+
+
+
+

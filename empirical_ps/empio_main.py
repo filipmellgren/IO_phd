@@ -13,6 +13,7 @@ import plotly.express as px
 from sklearn import datasets, linear_model
 import pyblp
 from estimate_funcs import est_demand_ols, calc_shares, set_names, est_prod_char, est_fe, est_blp_instrument, est_nests, extract_estimation_results
+import plotly.graph_objects as go
 
 # Store x time is a 'market'
 # What about outside option here?
@@ -41,21 +42,34 @@ plot_all(df)
 est_demand_ols(df)
 
 # BLP estimation
+k = MSIZE_k
 df = calc_shares(df, MSIZE_k)
 df = set_names(df)
 # Swithching to BLP package here. 
 # 3 and 4
 results = est_prod_char(df)
-extract_estimation_results(results)
+me, agg, mc, mu = extract_estimation_results(df, results)
 # 5
 results_fe = est_fe(df)
-extract_estimation_results(results_fe)
+me_fe, agg_fe, mc_fe, mu_fe = extract_estimation_results(df, results_fe)
 # 6
 results_blp = est_blp_instrument(df)
-extract_estimation_results(results_blp)
+mu_blp, agg_blp, mc_blp, mu_blp = extract_estimation_results(df, results_blp)
 # 7
 results_nl = est_nests(df)
-extract_estimation_results(results_nl)
+mu_nl, agg_nl, mc_nl, mu_nl = extract_estimation_results(df, results_nl)
+
+# TODO: interpret markup. Is it p - mc or (p-mc)/p?
+fig = go.Figure()
+fig.add_trace(go.Histogram(x=np.squeeze(mu, axis = 1),  name='Characteristics', cumulative_enabled=True))
+fig.add_trace(go.Histogram(x=np.squeeze(mu_fe, axis = 1),  name='Fixed Effects', cumulative_enabled=True))
+fig.add_trace(go.Histogram(x=np.squeeze(mu_blp, axis = 1), name='BLP IV', cumulative_enabled=True))
+fig.add_trace(go.Histogram(x=np.squeeze(mu_nl, axis = 1), name='Country nest', cumulative_enabled=True))
+# Overlay both histograms
+fig.update_layout( title="Markup by Estimation Procedure", xaxis_title="Markup", yaxis_title = "Product ID", barmode='overlay')
+# Reduce opacity to see both histograms
+fig.update_traces(opacity=0.75)
+fig.write_image("figures/markups.png")
 
 
 '''
@@ -68,9 +82,9 @@ df["mshare_oo"] = 1 - df.mshare.groupby(level = [0,1]).agg("sum")
 df["delta_j"] = np.log(df["mshare"]) - np.log(df["mshare_oo"])
 
 def berry94_est(X, Y):
-	''' Estimate alpha in Equation 14 in Berry 1994.
+	 Estimate alpha in Equation 14 in Berry 1994.
 	Assumes there is a variable "lnprice" which is log(price).
-	'''
+	
 	price_var_loc = np.where(X.columns == "lnprice")[0][0]
 	reg = LinearRegression().fit(X, Y) # Estimate beta and alpha through eq. 14 Berry 1994
 
@@ -87,8 +101,8 @@ np.savetxt("figures/b94_elas.csv", np.expand_dims(b94_est,0))
 # 4. Berry 1994, eq 31 (slighly before I think) Implied markups assuming MC are constant.
 # https://pyblp.readthedocs.io/en/stable/_notebooks/tutorial/post_estimation.html
 def berry94_markups(price, mshare, alpha):
-	''' Back out marginal costs as in Eq 31 Berry 94
-	'''
+	 Back out marginal costs as in Eq 31 Berry 94
+	
 	mc = price - 1/(alpha * (1 - mshare))
 	markup = (price - mc)/price
 	markup_quantiles = markup.quantile([.05, 0.25, 0.5, 0.75, 0.95])

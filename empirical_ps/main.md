@@ -51,6 +51,8 @@ $$u_{ij}^* = \mathbf{x}_t \beta - \alpha p_j + \xi_j + \epsilon_{j} + \epsilon_{
 
 where we assume $\epsilon_{ij}$ is iid across products and follows an extreme value distribution of type II. TODO is it not 1? and $\delta_j$ is a deterministic part of the utility of product $j$.
 
+Under tbis specification, the probability that a consumer choosed $j$ is: 
+
 For this specification, we can write market share as follows:
 
 $$s_j(\delta) = \frac{\exp^{\delta_j}}{\left(\sum_{r = 0}^{N}\exp{\delta_r} \right)}$$.
@@ -63,11 +65,13 @@ $$\frac{\exp{\alpha p_{j,t} + x_{j,t} \beta^{ex} + \xi_{jt}}}{1 + \sum_{k} \exp{
 Where the "1"-term comes form the outside good which is normalized to give utility zero. The outside good allows for many consumers not buying in case there is a market wide increase in price. Note
 
 
-Take logs and subtract log of outside good market share to obtain:
+In the special case where we (there is no unobserved agent characteristcs, Sigma is 0, Pi * d can still exist, where d is the observed agent characteristics) don't incorporate information on cosumer heterogeneity such as income distribution, we can do the inversion of the market shares analytically by taking logs and subtract log of outside good market share to obtain:
 
 $$\ln{s_j} - \ln{s_0} = x_j \beta - \alpha p_j + \xi_j$$
 
-Where we observe the left hand side in the data and so can estimate the relationship using regression.
+Where we observe the left hand side in the data and so can estimate the relationship using regression. In this specification, we don't allow for random coefficients model, although in principle that is possible. 
+
+(in pybblp we just omit agent side to obtain logit model )
 
 Having estimates of $\alpha$, we can then back out own and crossprice elasticities:
 
@@ -77,6 +81,8 @@ Having estimates of $\alpha$, we can then back out own and crossprice elasticiti
 There are several specifications for which we will repeat the exercise and we begin with the most simple.
 
 For all specifications I will define the total market size as a constant multiplied by the store maximum number of bottles sold at any point in time. Using the maximal sales in a given store provides a lower bound for the total market size of a store-time combination assuming that there is no large change in population. I let the multiplying constant be 2, meaning that people can drink at most twice as much as the record observed in the data.
+
+Implementation wise, in pyblp shares specifies the market shares which need to be between zero and one,
 
 
 ### Estimation using product characteristics
