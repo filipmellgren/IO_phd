@@ -30,16 +30,24 @@ MSIZE_k = 2
 df["price"] = df["p"]
 df["lnprice"] = np.log(df["price"])
 
+total_sales = df.groupby(level = [1, 2]).sum()["numbot"]
+df = df.join(total_sales, rsuffix = "_market")
+
+
 # 1. Descriptive statistics
-# Number of products
+
+# SHould I do the below?
+# TODO: correlation matrix with price
+# TODO: correlation matrix with quantity
+
 plot_all(df)
-
-
 
 # 2. Estimate demand for wine
 # Problem with this specification: prices are endogenous
 # Additional issue: how seaprated are the markets? Some SUTVA might be violated
-est_demand_ols(df)
+# #df = df.join(pd.get_dummies(df.sub_class))
+top_N = 4
+est_demand_ols(df, top_N)
 
 # BLP estimation
 k = MSIZE_k
@@ -61,10 +69,10 @@ mu_nl, agg_nl, mc_nl, mu_nl = extract_estimation_results(df, results_nl)
 
 # TODO: interpret markup. Is it p - mc or (p-mc)/p?
 fig = go.Figure()
-fig.add_trace(go.Histogram(x=np.squeeze(mu, axis = 1),  name='Characteristics', cumulative_enabled=True))
-fig.add_trace(go.Histogram(x=np.squeeze(mu_fe, axis = 1),  name='Fixed Effects', cumulative_enabled=True))
-fig.add_trace(go.Histogram(x=np.squeeze(mu_blp, axis = 1), name='BLP IV', cumulative_enabled=True))
-fig.add_trace(go.Histogram(x=np.squeeze(mu_nl, axis = 1), name='Country nest', cumulative_enabled=True))
+#fig.add_trace(go.Histogram(x=np.squeeze(mu, axis = 1),  name='Characteristics')) # Exclude, negative costs
+fig.add_trace(go.Histogram(x=np.squeeze(mu_fe, axis = 1),  name='Fixed Effects'))
+fig.add_trace(go.Histogram(x=np.squeeze(mu_blp, axis = 1), name='BLP IV'))
+fig.add_trace(go.Histogram(x=np.squeeze(mu_nl, axis = 1), name='Country nest'))
 # Overlay both histograms
 fig.update_layout( title="Markup by Estimation Procedure", xaxis_title="Markup", yaxis_title = "Product ID", barmode='overlay')
 # Reduce opacity to see both histograms

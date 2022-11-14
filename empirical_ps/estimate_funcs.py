@@ -8,11 +8,12 @@ import plotly.graph_objects as go
 
 
 
-def est_demand_ols(df):
-	# Based on plots, do some data filtration
+def est_demand_ols(df, top_N):
+	''' Estimate elasticities using linear regression.
+
+	'''	
 	
-	top_N = 4
-	top_wines = df.groupby(level = 0).sum()["numbot"].sort_values(ascending = False).reset_index()[:top_N].idcode
+	top_wines = df.groupby(level = 2).sum()["numbot"].sort_values(ascending = False).reset_index()[:top_N].idcode
 	df = df.reset_index()
 	df = df.loc[pd.Series(df.idcode).isin(top_wines)]
 
@@ -23,39 +24,42 @@ def est_demand_ols(df):
 	df = df.dropna()
 	df["lnq"] = np.log(df["numbot"])
 
-	df["lnq"].describe()
-	df["lnprice"].describe()
-
 	df["Wine_id"] = df["idcode"].astype(str)
+
 	fig = px.scatter(df, x = "lnq", y = "lnprice", color = "Wine_id", trendline = "ols")
-	fig.show()
+	
 	fig.write_image("figures/price_quant.png")
 
 	els = []
+	top_wines = np.sort(top_wines)
 	for wine in top_wines:
-		X = df.loc[df.idcode == wine, df.columns.isin(top_wines)]
+		X = df.loc[df.idcode == wine, df.columns.isin(top_wines) | df.columns.isin(["numbot_market", "doc", "proof"])] 
 		Y = df.loc[df.idcode == wine, "lnq"]
 		reg = LinearRegression().fit(X, Y)
 		els.append(reg.coef_)
 
+
 	els = pd.DataFrame(els)
+
+	els = els.loc[:, X.columns.isin(top_wines)]
 	els.index = top_wines
 	els.index = els.index.map(str)
 	els.columns = top_wines
 	els.columns = els.columns.map(str)
-
+	
 	fig = px.imshow(els, title = "Elasticity estimates under OLS controlling for price") 
 	fig.write_image("figures/elasticities_ols.png")
 	return
-
 
 def calc_shares(df, k):
 	'''
 	k is the constant used to define the market size
 	'''
-	Msize = df["numbot"].groupby(level = [1, 2]).sum().groupby(level = [1]).max() * k # Max bought over time, multiuplied by constant
-	df = df.join(Msize, rsuffix = "_market")
-	df["shares"] = df["numbot"] / df["numbot_market"]
+
+	Msize = df["numbot"].groupby(level = [0, 1]).sum().groupby(level = [1]).max() * k # Max bought over time, multiuplied by constant
+	df = df.join(Msize, rsuffix = "_max_market")
+	df["shares"] = df.numbot / df.numbot_max_market
+
 	return(df)
 
 def set_names(df):
@@ -69,7 +73,8 @@ def set_names(df):
 
 def est_prod_char(df):
 	# Specification 3 & 4, product characteristics
-	logit_formulation = pyblp.Formulation('prices + proof + variet')
+	#pd.get_dummies(df["sub_class"]).columns
+	logit_formulation = pyblp.Formulation('prices + proof + variet + doc')
 	problem = pyblp.Problem(logit_formulation, df)
 	logit_results_characteristics = problem.solve()
 	return(logit_results_characteristics)
@@ -83,9 +88,11 @@ def est_fe(df):
 
 def est_blp_instrument(df):
 	# Specification 6, BLP styled instruments
-	df["demand_instruments0"] = df["proof"].groupby(level = [0,1]).sum() - df["proof"]
-	df["demand_instruments1"] = df["merlot"].groupby(level = [0,1]).sum() - df["merlot"]
-	logit_formulation = pyblp.Formulation('prices')
+	
+	df["demand_instruments0"] = df["fx"] # Cost shifter
+	df["demand_instruments1"] = df["doc"].groupby(level = [0,1]).sum() - df["doc"] # BLP instrument
+	df["demand_instruments2"] = df.groupby(level = [0,1]).size() # BLP instrument, number of other products in store
+	logit_formulation = pyblp.Formulation('prices', absorb='C(product_ids)')
 	problem = pyblp.Problem(logit_formulation, df)
 	logit_results_blp = problem.solve()
 	return(logit_results_blp)
