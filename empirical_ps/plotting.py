@@ -56,6 +56,3 @@ def plot_all(df):
 	fig.write_image("figures/bottles_time.png")
 	
 	return
-
-
-	# TODO: look at red or white wines only

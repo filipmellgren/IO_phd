@@ -2,6 +2,7 @@
 # filip.mellgren@su.se
 # TODO: read: https://pyblp.readthedocs.io/en/stable/
 # See my old Berry 1994 estimation: https://github.com/filipmellgren/IO/blob/master/Workshop_3/Workshop_3.Rmd
+# TODO: results and some discussions on each point
 
 import pandas as pd
 from scipy import stats
@@ -12,7 +13,7 @@ import ipdb
 import plotly.express as px
 from sklearn import datasets, linear_model
 import pyblp
-from estimate_funcs import est_demand_ols, calc_shares, set_names, est_prod_char, est_fe, est_blp_instrument, est_nests, extract_estimation_results
+from estimate_funcs import est_demand_ols, calc_shares, set_names, est_prod_char, est_fe, est_blp_instrument, est_nests, extract_estimation_results, est_full
 import plotly.graph_objects as go
 
 # Store x time is a 'market'
@@ -57,27 +58,59 @@ df = set_names(df)
 # 3 and 4
 results = est_prod_char(df)
 me, agg, mc, mu = extract_estimation_results(df, results)
+
 # 5
 results_fe = est_fe(df)
 me_fe, agg_fe, mc_fe, mu_fe = extract_estimation_results(df, results_fe)
-# 6
+
+# 6 (colluding against environemtal regulation has some ideas on page 22)
 results_blp = est_blp_instrument(df)
-mu_blp, agg_blp, mc_blp, mu_blp = extract_estimation_results(df, results_blp)
+me_blp, agg_blp, mc_blp, mu_blp = extract_estimation_results(df, results_blp)
+
 # 7
 results_nl = est_nests(df)
-mu_nl, agg_nl, mc_nl, mu_nl = extract_estimation_results(df, results_nl)
+me_nl, agg_nl, mc_nl, mu_nl = extract_estimation_results(df, results_nl)
 
-# TODO: interpret markup. Is it p - mc or (p-mc)/p?
-fig = go.Figure()
-#fig.add_trace(go.Histogram(x=np.squeeze(mu, axis = 1),  name='Characteristics')) # Exclude, negative costs
-fig.add_trace(go.Histogram(x=np.squeeze(mu_fe, axis = 1),  name='Fixed Effects'))
-fig.add_trace(go.Histogram(x=np.squeeze(mu_blp, axis = 1), name='BLP IV'))
-fig.add_trace(go.Histogram(x=np.squeeze(mu_nl, axis = 1), name='Country nest'))
-# Overlay both histograms
-fig.update_layout( title="Markup by Estimation Procedure", xaxis_title="Markup", yaxis_title = "Product ID", barmode='overlay')
-# Reduce opacity to see both histograms
-fig.update_traces(opacity=0.75)
+
+# Optional, for fun
+results = est_full(df)
+me_full, agg_full, mc_full, mu_full = extract_estimation_results(df, results)
+
+
+def pct_df(pct, mc, mu, name):
+	df = pd.DataFrame(np.squeeze(np.percentile(np.array([mc, mu]), pct, axis = 1)))
+	df.index = pct
+	df.index.name = "Pct"
+	df.columns = ["MC", "markup"]
+	df = pd.concat([df], keys=[name], names=['Estimation'])
+	return(df)
+
+
+pct = np.array([5, 25, 50, 75, 95])
+df = pct_df(pct, mc, mu, "Controls")
+df = pd.concat([df, pct_df(pct, mc_fe, mu_fe, "FE")])
+df = pd.concat([df,pct_df(pct, mc_blp, mu_blp, "IV")])
+df = pd.concat([df,pct_df(pct, mc_nl, mu_nl, "NL")])
+df = pd.concat([df,pct_df(pct, mc_full, mu_full, "Full")])
+
+table = df.stack().reset_index().set_index(["Estimation", "level_2"]).pivot(columns = ["Pct"])
+
+print(table.to_markdown())
+
+import plotly.figure_factory as ff
+
+group_labels = ['FE', 'IV', 'Nest', 'Full']
+# Markups = (p-mc)/p
+hist_data = np.squeeze([mu_fe, mu_blp, mu_nl, mu_full])
+fig = ff.create_distplot(hist_data, group_labels, show_hist=False, show_rug=False)
+fig.update_layout( title="Markup by Estimation Procedure", xaxis_title="Markup")
 fig.write_image("figures/markups.png")
+
+hist_data = np.squeeze([mc_fe, mc_blp, mc_nl, mc_full])
+fig = ff.create_distplot(hist_data, group_labels, show_hist=False, show_rug=False)
+fig.update_layout( title="Cost by Estimation Procedure", xaxis_title="Marginal cost")
+fig.write_image("figures/cost.png")
+
 
 
 '''

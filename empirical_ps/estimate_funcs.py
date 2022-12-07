@@ -6,7 +6,7 @@ from sklearn.linear_model import LinearRegression
 import ipdb
 import plotly.graph_objects as go
 
-
+import ipdb
 
 def est_demand_ols(df, top_N):
 	''' Estimate elasticities using linear regression.
@@ -25,7 +25,6 @@ def est_demand_ols(df, top_N):
 	df["lnq"] = np.log(df["numbot"])
 
 	df["Wine_id"] = df["idcode"].astype(str)
-
 	fig = px.scatter(df, x = "lnq", y = "lnprice", color = "Wine_id", trendline = "ols")
 	
 	fig.write_image("figures/price_quant.png")
@@ -47,7 +46,7 @@ def est_demand_ols(df, top_N):
 	els.columns = top_wines
 	els.columns = els.columns.map(str)
 	
-	fig = px.imshow(els, title = "Elasticity estimates under OLS controlling for price") 
+	fig = px.imshow(els, title = "Elasticity estimates under OLS controlling for price", text_auto=True) 
 	fig.write_image("figures/elasticities_ols.png")
 	return
 
@@ -90,8 +89,8 @@ def est_blp_instrument(df):
 	# Specification 6, BLP styled instruments
 	
 	df["demand_instruments0"] = df["fx"] # Cost shifter
-	df["demand_instruments1"] = df["doc"].groupby(level = [0,1]).sum() - df["doc"] # BLP instrument
-	df["demand_instruments2"] = df.groupby(level = [0,1]).size() # BLP instrument, number of other products in store
+	#df["demand_instruments0"] = df["doc"].groupby(level = [0,1]).sum() - df["doc"] # BLP instrument
+	#df["demand_instruments0"] = df.groupby(level = [0,1]).size() # BLP instrument, number of other products in store
 	logit_formulation = pyblp.Formulation('prices', absorb='C(product_ids)')
 	problem = pyblp.Problem(logit_formulation, df)
 	logit_results_blp = problem.solve()
@@ -107,19 +106,40 @@ def est_nests(df):
 	nl_results = problem.solve(rho = 0.7)
 	return(nl_results)
 
+def est_full(df):
+	df["nesting_ids"] = df["national"]
+	groups = df.groupby(["market_ids", "nesting_ids"])
+	df["demand_instruments0"] = df["fx"] 
+	df["demand_instruments20"] = groups["shares"].transform(np.size)
+	nl_formulation = pyblp.Formulation('0 + prices', absorb='C(product_ids)')
+	problem = pyblp.Problem(nl_formulation, df)
+	results = problem.solve(rho = 0.7)
+	return(results)
+
 def extract_estimation_results(df, results):
 	''' Calculate elasticities, markups, marginal costs, and create plots
 	results : a ProblemResults object from pyblp package
-	# TODO: extract coefficients for each run
 	# TODO: WANT TO HAVE all outcome in a single plot. Would be neat
 	# Histogram with markups for each specification. 
 	# TODO: he asks specifically for quantiles: What is the implied markup - at the 5th percentile, 25th, median, 75th and 95th?
 	'''
+	result_dict = results.to_dict()
+	coefs = np.squeeze(result_dict["beta"])
+	ses = np.squeeze(result_dict["beta_se"])
+
+	table = pd.DataFrame([coefs, ses])
+	print(table.to_markdown())
+
 	elasticities = results.compute_elasticities()
 	# Information about own elasticities of demand from elasticity matrices:
 	mean_elasticities = results.extract_diagonal_means(elasticities)
 	# Aggregate elasticities of demand, E, in each market, which reflect the change in total sales under a proportional sales tax of some factor
 	aggregates = results.compute_aggregate_elasticities(factor=0.1)
+	# Costs are computed as p - eta, eta = Delta**(-1) * s
+	# eta is a multi-product Bertrand markup
+	#	Delta = - partial s / partial p (multiplied by Ownership indicator matrix if any)
+	# s = market share
+	# These come from multiproduct differentiated Bertrand FOCs
 	costs = results.compute_costs() 
 	markups = results.compute_markups(costs=costs)
 	return(mean_elasticities, aggregates, costs, markups)
@@ -140,9 +160,5 @@ def histogram(df, variable, path):
 	fig.add_trace(go.Histogram(x=np.squeeze(variable, axis = 1)))
 	fig.write_image(path)
 	return
-
-
-
-
 
 
